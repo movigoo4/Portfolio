@@ -65,11 +65,12 @@ export default function ScrollyCanvas() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas resolution to match window inner sizes to maintain aspect ratio 
-    // and crispness on high DPI screens. Cap at 2.0 for performance.
+    // Use the canvas's own rendered size (clientWidth/clientHeight) instead of
+    // window.innerWidth/innerHeight — this avoids the black bar on mobile caused
+    // by the browser address bar shrinking the viewport after load.
     const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio, 2) : 1;
-    const drawWidth = window.innerWidth * dpr;
-    const drawHeight = window.innerHeight * dpr;
+    const drawWidth = canvas.clientWidth * dpr;
+    const drawHeight = canvas.clientHeight * dpr;
 
     if (canvas.width !== drawWidth || canvas.height !== drawHeight) {
       canvas.width = drawWidth;
@@ -116,12 +117,16 @@ export default function ScrollyCanvas() {
   }, [renderFrame, frameIndex, images]);
 
   return (
-    <div ref={containerRef} className="relative h-[500vh] w-full bg-slate-950">
-      <div className="sticky top-0 h-screen h-[100dvh] w-full overflow-hidden">
+    <div ref={containerRef} className="relative w-full bg-slate-950" style={{ height: '500vh' }}>
+      {/* Use inline style for height so dvh unit works reliably on mobile without Tailwind conflicts */}
+      <div
+        className="sticky top-0 w-full overflow-hidden"
+        style={{ height: '100dvh' }}
+      >
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 h-full w-full"
-          style={{ width: '100%', height: '100%' }}
+          className="absolute inset-0 block"
+          style={{ width: '100%', height: '100%', display: 'block' }}
         />
         {!imagesLoaded && (
           <div className="absolute top-6 right-6 z-50">
