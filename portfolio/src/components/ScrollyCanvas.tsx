@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useScroll, useTransform, useMotionValueEvent } from 'framer-motion';
+import { useScroll, useTransform, useMotionValueEvent, useSpring } from 'framer-motion';
 
 const FRAME_COUNT = 120;
 const getFramePath = (index: number) =>
@@ -48,7 +48,13 @@ export default function ScrollyCanvas() {
     offset: ['start start', 'end end'],
   });
 
-  const frameIndex = useTransform(scrollYProgress, [0, 1], [0, FRAME_COUNT - 1]);
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 100,
+    damping: 30,
+    restDelta: 0.001
+  });
+
+  const frameIndex = useTransform(smoothProgress, [0, 1], [0, FRAME_COUNT - 1]);
 
   const renderFrame = useCallback((index: number) => {
     // Fallback to closest available frame if current index isn't loaded yet
@@ -71,7 +77,7 @@ export default function ScrollyCanvas() {
     }
 
     // Object-fit: cover equivalent logic
-    const img = images[index];
+    const img = targetImg;
     const canvasRatio = canvas.width / canvas.height;
     const imgRatio = img.width / img.height;
     
@@ -82,18 +88,29 @@ export default function ScrollyCanvas() {
 
     if (imgRatio > canvasRatio) {
       // Image is wider than canvas, crop horizontally
-      drawW = img.height * canvasRatio;
-      x = (img.width - drawW) / 2;
-      drawH = img.height;
+      const scale = canvas.height / img.height;
+      drawW = img.width * scale;
+      drawH = canvas.height;
+      
+      // On mobile (narrow screens), we might want to shift the focus 
+      // instead of strictly centering. Standard centering is (canvas.width - drawW) / 2
+      const isMobile = window.innerWidth < 768;
+      const horizontalOffset = isMobile ? 0.5 : 0.5; // Change 0.5 to 0.7 or 0.3 to shift focus
+      
+      x = (canvas.width - drawW) * horizontalOffset;
+      y = 0;
     } else {
       // Image is taller than canvas, crop vertically
-      drawH = img.width / canvasRatio;
-      y = (img.height - drawH) / 2;
-      drawW = img.width;
+      const scale = canvas.width / img.width;
+      drawW = canvas.width;
+      drawH = img.height * scale;
+      y = (canvas.height - drawH) * 0.5;
+      x = 0;
     }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(targetImg, x, y, drawW, drawH, 0, 0, canvas.width, canvas.height);
+    // Use the simpler drawImage version as we've pre-calculated drawW/drawH to cover the canvas
+    ctx.drawImage(targetImg, x, y, drawW, drawH);
   }, [images]);
 
   useMotionValueEvent(frameIndex, 'change', (latest) => {
