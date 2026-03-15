@@ -12,24 +12,35 @@ export default function ScrollyCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [images, setImages] = useState<HTMLImageElement[]>([]);
   const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
 
   // Preload images
   useEffect(() => {
     let loadedCount = 0;
     const loadedImages: HTMLImageElement[] = [];
 
+    // Load first frame immediately for instant visual
+    const firstImg = new Image();
+    firstImg.src = getFramePath(0);
+    firstImg.onload = () => {
+      loadedImages[0] = firstImg;
+      setImages([...loadedImages]);
+      setLoadProgress(1);
+    };
+
     for (let i = 0; i < FRAME_COUNT; i++) {
       const img = new Image();
       img.src = getFramePath(i);
       img.onload = () => {
         loadedCount++;
+        loadedImages[i] = img;
+        setLoadProgress(Math.floor((loadedCount / FRAME_COUNT) * 100));
         if (loadedCount === FRAME_COUNT) {
           setImagesLoaded(true);
+          setImages([...loadedImages]);
         }
       };
-      loadedImages.push(img);
     }
-    setImages(loadedImages);
   }, []);
 
   const { scrollYProgress } = useScroll({
@@ -40,15 +51,17 @@ export default function ScrollyCanvas() {
   const frameIndex = useTransform(scrollYProgress, [0, 1], [0, FRAME_COUNT - 1]);
 
   const renderFrame = useCallback((index: number) => {
-    if (!images[index] || !canvasRef.current || !imagesLoaded) return;
+    // Fallback to closest available frame if current index isn't loaded yet
+    const targetImg = images[index] || images[0];
+    if (!targetImg || !canvasRef.current) return;
     
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     // Set canvas resolution to match window inner sizes to maintain aspect ratio 
-    // and crispness on high DPI screens
-    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1;
+    // and crispness on high DPI screens. Cap at 2.0 for performance.
+    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio, 2) : 1;
     const drawWidth = window.innerWidth * dpr;
     const drawHeight = window.innerHeight * dpr;
     
@@ -80,45 +93,41 @@ export default function ScrollyCanvas() {
     }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, x, y, drawW, drawH, 0, 0, canvas.width, canvas.height);
-  }, [images, imagesLoaded]);
+    ctx.drawImage(targetImg, x, y, drawW, drawH, 0, 0, canvas.width, canvas.height);
+  }, [images]);
 
   useMotionValueEvent(frameIndex, 'change', (latest) => {
-    if (imagesLoaded) {
-      renderFrame(Math.floor(latest));
-    }
+    renderFrame(Math.floor(latest));
   });
 
   // Render initial frame on mount if loaded, also handle resize
   useEffect(() => {
-    if (imagesLoaded) {
-      renderFrame(0);
-      
-      const handleResize = () => renderFrame(Math.floor(frameIndex.get()));
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
-    }
-  }, [imagesLoaded, renderFrame, frameIndex]);
+    renderFrame(0);
+    
+    const handleResize = () => renderFrame(Math.floor(frameIndex.get()));
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [renderFrame, frameIndex, images]);
 
   return (
-    <div ref={containerRef} className="relative h-[500vh] w-full bg-slate-950">
-      <div className="sticky top-0 h-screen w-full overflow-hidden">
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 h-full w-full"
-          style={{ width: '100%', height: '100%' }}
-        />
-        {!imagesLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm z-50">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-12 w-12 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin" />
-              <p className="font-mono text-sm tracking-widest text-indigo-400 uppercase">
-                Loading Experience
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+     <div ref={containerRef} className="relative h-[500vh] w-full bg-slate-950">
+       <div className="sticky top-0 h-screen h-[100dvh] w-full overflow-hidden">
+         <canvas
+           ref={canvasRef}
+           className="absolute inset-0 h-full w-full"
+           style={{ width: '100%', height: '100%' }}
+         />
+         {!imagesLoaded && (
+           <div className="absolute top-6 right-6 z-50">
+              <div className="flex items-center gap-3 bg-black/40 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-full">
+                <div className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+                <span className="font-mono text-[10px] tracking-widest text-indigo-200 uppercase">
+                  Buffering {loadProgress}%
+                </span>
+              </div>
+           </div>
+         )}
+       </div>
+     </div>
   );
 }
