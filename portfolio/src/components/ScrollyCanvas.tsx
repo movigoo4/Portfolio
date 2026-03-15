@@ -60,7 +60,7 @@ export default function ScrollyCanvas() {
     // Fallback to closest available frame if current index isn't loaded yet
     const targetImg = images[index] || images[0];
     if (!targetImg || !canvasRef.current) return;
-    
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -70,7 +70,7 @@ export default function ScrollyCanvas() {
     const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio, 2) : 1;
     const drawWidth = window.innerWidth * dpr;
     const drawHeight = window.innerHeight * dpr;
-    
+
     if (canvas.width !== drawWidth || canvas.height !== drawHeight) {
       canvas.width = drawWidth;
       canvas.height = drawHeight;
@@ -80,7 +80,7 @@ export default function ScrollyCanvas() {
     const img = targetImg;
     const canvasRatio = canvas.width / canvas.height;
     const imgRatio = img.width / img.height;
-    
+
     let drawW = canvas.width;
     let drawH = canvas.height;
     let x = 0;
@@ -88,29 +88,18 @@ export default function ScrollyCanvas() {
 
     if (imgRatio > canvasRatio) {
       // Image is wider than canvas, crop horizontally
-      const scale = canvas.height / img.height;
-      drawW = img.width * scale;
-      drawH = canvas.height;
-      
-      // On mobile (narrow screens), we might want to shift the focus 
-      // instead of strictly centering. Standard centering is (canvas.width - drawW) / 2
-      const isMobile = window.innerWidth < 768;
-      const horizontalOffset = isMobile ? 0.5 : 0.5; // Change 0.5 to 0.7 or 0.3 to shift focus
-      
-      x = (canvas.width - drawW) * horizontalOffset;
-      y = 0;
+      drawW = img.height * canvasRatio;
+      x = (img.width - drawW) / 2;
+      drawH = img.height;
     } else {
       // Image is taller than canvas, crop vertically
-      const scale = canvas.width / img.width;
-      drawW = canvas.width;
-      drawH = img.height * scale;
-      y = (canvas.height - drawH) * 0.5;
-      x = 0;
+      drawH = img.width / canvasRatio;
+      y = (img.height - drawH) / 2;
+      drawW = img.width;
     }
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Use the simpler drawImage version as we've pre-calculated drawW/drawH to cover the canvas
-    ctx.drawImage(targetImg, x, y, drawW, drawH);
+    ctx.drawImage(targetImg, x, y, drawW, drawH, 0, 0, canvas.width, canvas.height);
   }, [images]);
 
   useMotionValueEvent(frameIndex, 'change', (latest) => {
@@ -120,31 +109,31 @@ export default function ScrollyCanvas() {
   // Render initial frame on mount if loaded, also handle resize
   useEffect(() => {
     renderFrame(0);
-    
+
     const handleResize = () => renderFrame(Math.floor(frameIndex.get()));
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [renderFrame, frameIndex, images]);
 
   return (
-     <div ref={containerRef} className="relative h-[500vh] w-full bg-slate-950">
-       <div className="sticky top-0 h-screen h-[100dvh] w-full overflow-hidden">
-         <canvas
-           ref={canvasRef}
-           className="absolute inset-0 h-full w-full"
-           style={{ width: '100%', height: '100%' }}
-         />
-         {!imagesLoaded && (
-           <div className="absolute top-6 right-6 z-50">
-              <div className="flex items-center gap-3 bg-black/40 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-full">
-                <div className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
-                <span className="font-mono text-[10px] tracking-widest text-indigo-200 uppercase">
-                  Buffering {loadProgress}%
-                </span>
-              </div>
-           </div>
-         )}
-       </div>
-     </div>
+    <div ref={containerRef} className="relative h-[500vh] w-full bg-slate-950">
+      <div className="sticky top-0 h-screen h-[100dvh] w-full overflow-hidden">
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 h-full w-full"
+          style={{ width: '100%', height: '100%' }}
+        />
+        {!imagesLoaded && (
+          <div className="absolute top-6 right-6 z-50">
+            <div className="flex items-center gap-3 bg-black/40 backdrop-blur-xl border border-white/10 px-4 py-2 rounded-full">
+              <div className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+              <span className="font-mono text-[10px] tracking-widest text-indigo-200 uppercase">
+                Buffering {loadProgress}%
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
